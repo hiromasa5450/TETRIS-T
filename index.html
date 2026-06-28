@@ -12,7 +12,1350 @@ html,body{width:100%;height:100%;overflow:hidden;background:#05060a;color:#e8ecf
 :root{
   --neon:#3fe0ff; --neon2:#a86bff; --gold:#FFD700; --orange:#ff9b3d;
   --bg:#05060a; --panel:#0d1018; --line:#1c2233;
+}<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>テトリス神。</title>
+<style>
+/* ============================== 基本リセット ============================== */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none;-webkit-user-select:none;}
+html,body{width:100%;height:100%;overflow:hidden;background:#05060a;color:#e8ecf5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;}
+:root{
+  --neon:#3fe0ff; --neon2:#a86bff; --gold:#FFD700; --orange:#ff9b3d;
+  --bg:#05060a; --panel:#0d1018; --line:#1c2233;
 }
+button{font-family:inherit;cursor:pointer;color:#fff;border:none;outline:none;}
+
+/* ============================== 画面共通 ============================== */
+.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+.screen.active{display:flex;}
+
+/* ============================== 背景の落下ミノ ============================== */
+#bgCanvas{position:fixed;inset:0;z-index:0;opacity:.35;}
+
+/* ============================== タイトル ============================== */
+#titleScreen{z-index:2;gap:26px;}
+.logo{font-size:clamp(42px,12vw,96px);font-weight:900;letter-spacing:2px;text-align:center;line-height:1;
+  background:linear-gradient(90deg,var(--neon),var(--neon2),var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 18px rgba(63,224,255,.6));animation:pulse 2.4s ease-in-out infinite;}
+@keyframes pulse{50%{filter:drop-shadow(0 0 34px rgba(168,107,255,.9));}}
+.menu{display:flex;flex-direction:column;gap:16px;width:min(86vw,340px);}
+.menu button{font-size:20px;font-weight:700;padding:18px;border-radius:16px;background:rgba(20,26,40,.85);
+  border:2px solid var(--line);box-shadow:0 0 0 rgba(63,224,255,0);transition:.18s;}
+.menu button:active{transform:scale(.96);border-color:var(--neon);box-shadow:0 0 22px rgba(63,224,255,.5);}
+.tagline{font-size:13px;color:#7e879b;letter-spacing:3px;}
+
+/* ============================== モーダル ============================== */
+.modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;padding:18px;}
+.modal.active{display:flex;}
+.modal-box{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:22px;width:min(92vw,440px);max-height:86vh;overflow:auto;}
+.modal-box h2{text-align:center;margin-bottom:16px;color:var(--neon);}
+.rank-row{display:grid;grid-template-columns:34px 1fr auto;gap:8px;padding:10px;border-bottom:1px solid var(--line);font-size:14px;align-items:center;}
+.rank-row .pos{font-weight:900;color:var(--gold);text-align:center;}
+.rank-row .meta{font-size:11px;color:#8b94a8;}
+.btn{padding:12px 18px;border-radius:12px;background:linear-gradient(135deg,var(--neon),var(--neon2));font-weight:700;font-size:15px;}
+.btn.secondary{background:#1a2030;border:1px solid var(--line);}
+.btn.full{width:100%;}
+.row{display:flex;gap:10px;}
+.row>*{flex:1;}
+input[type=text],input[type=tel]{width:100%;padding:14px;border-radius:12px;background:#0a0d15;border:2px solid var(--line);color:#fff;font-size:18px;text-align:center;}
+input:focus{border-color:var(--neon);}
+
+/* ============================== ゲーム画面 ============================== */
+#gameScreen,#mpGameScreen{z-index:3;justify-content:flex-start;}
+.game-wrap{display:flex;flex-direction:column;align-items:center;width:100%;height:100%;justify-content:space-between;padding:6px 0;}
+.play-area{display:flex;gap:10px;align-items:center;justify-content:center;width:100%;flex:1;min-height:0;}
+.side{display:flex;flex-direction:column;gap:8px;}
+.side.left{align-items:flex-end;}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 8px;min-width:70px;}
+.panel .label{font-size:10px;color:#7e879b;letter-spacing:1px;margin-bottom:2px;}
+.panel .val{font-size:16px;font-weight:800;color:#fff;}
+.panel .val.small{font-size:13px;}
+canvas.field{background:#080a11;border:2px solid var(--line);border-radius:6px;box-shadow:0 0 30px rgba(63,224,255,.12);display:block;height:min(68vh,560px);width:auto;max-width:100%;max-height:100%;}
+canvas.mini{background:#0a0d15;border:1px solid var(--line);border-radius:6px;display:block;}
+.opp-bar{font-size:9px;color:#888;line-height:1.5;width:100%;text-align:center;padding:2px 4px;word-break:break-all;}
+.opp-bar .o{margin:0 5px;display:inline-block;}
+.opp-bar .o.lead{color:var(--gold);}
+.opp-bar .o.dead{color:#444;}
+
+/* ============================== 演出テキスト ============================== */
+.fx{position:fixed;z-index:20;left:50%;top:40%;transform:translate(-50%,-50%) scale(.6);pointer-events:none;
+  font-size:clamp(26px,8vw,56px);font-weight:900;text-align:center;opacity:0;text-shadow:0 0 20px rgba(63,224,255,.8);}
+.fx.show{animation:fxpop 1s ease-out forwards;}
+@keyframes fxpop{0%{opacity:0;transform:translate(-50%,-50%) scale(.5);}20%{opacity:1;transform:translate(-50%,-50%) scale(1.15);}80%{opacity:1;transform:translate(-50%,-50%) scale(1);}100%{opacity:0;transform:translate(-50%,-50%) scale(1);}}
+.fx.b2b{color:var(--orange);text-shadow:0 0 20px rgba(255,155,61,.9);}
+.fx.gold{color:var(--gold);text-shadow:0 0 24px rgba(255,215,0,.9);}
+.shake{animation:shake .35s;}
+@keyframes shake{0%,100%{transform:translate(0,0);}20%{transform:translate(-8px,4px);}40%{transform:translate(8px,-4px);}60%{transform:translate(-6px,-3px);}80%{transform:translate(6px,3px);}}
+#flash{position:fixed;inset:0;z-index:15;background:#fff;opacity:0;pointer-events:none;}
+#flash.go{animation:flash .25s;}
+@keyframes flash{0%{opacity:.55;}100%{opacity:0;}}
+
+/* ============================== コントローラー ============================== */
+.controller{--bs:44px;width:100%;max-width:560px;display:flex;justify-content:space-between;align-items:center;
+  padding:6px 12px calc(6px + env(safe-area-inset-bottom));gap:6px;}
+.dpad{position:relative;width:calc(var(--bs)*3);height:calc(var(--bs)*3);flex:0 0 auto;}
+.dpad button{position:absolute;width:var(--bs);height:var(--bs);background:#1a2030;border:1px solid #2a3245;color:#9fb0cc;font-size:18px;display:flex;align-items:center;justify-content:center;}
+.dpad .up{top:0;left:var(--bs);border-radius:8px 8px 0 0;}
+.dpad .down{bottom:0;left:var(--bs);border-radius:0 0 8px 8px;}
+.dpad .left{left:0;top:var(--bs);border-radius:8px 0 0 8px;}
+.dpad .right{right:0;top:var(--bs);border-radius:0 8px 8px 0;}
+.dpad .mid{left:var(--bs);top:var(--bs);background:#11151f;border:1px solid #2a3245;}
+.dpad button:active{background:var(--neon);color:#021;}
+.abxy{position:relative;width:calc(var(--bs)*3);height:calc(var(--bs)*3);flex:0 0 auto;}
+.abxy button{position:absolute;width:var(--bs);height:var(--bs);border-radius:50%;font-weight:800;font-size:16px;border:1px solid #2a3245;}
+.abxy .y{top:0;left:var(--bs);background:#2a3a2a;}
+.abxy .x{top:var(--bs);left:0;background:#2a2a3a;}
+.abxy .a{top:var(--bs);right:0;background:#3a2a2a;}
+.abxy .b{bottom:0;left:var(--bs);background:#3a382a;}
+.abxy button:active{filter:brightness(1.8);}
+.center-ctrl{display:flex;flex-direction:column;gap:8px;align-items:center;}
+.center-ctrl button{width:64px;height:28px;border-radius:8px;background:#11151f;border:1px solid #2a3245;font-size:11px;color:#9fb0cc;}
+
+/* 小さい画面ではコントローラー・パネルを縮小 */
+@media (max-height:760px){ .controller{--bs:40px;} }
+@media (max-height:640px){ .controller{--bs:35px;} .center-ctrl button{height:24px;font-size:10px;} }
+@media (max-width:480px){
+  .panel{min-width:54px;padding:5px 6px;}
+  .panel .label{font-size:9px;}
+  .panel .val.small{font-size:12px;}
+  .panel canvas.mini{width:60px;}
+  .play-area{gap:6px;}
+  .controller{--bs:40px;}
+}
+
+/* ============================== ロビー ============================== */
+.code-display{font-size:48px;font-weight:900;letter-spacing:10px;color:var(--gold);text-align:center;margin:10px 0;text-shadow:0 0 20px rgba(255,215,0,.5);}
+.player-list{display:flex;flex-direction:column;gap:8px;margin:14px 0;}
+.player-item{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#0a0d15;border:1px solid var(--line);border-radius:10px;}
+.player-item .host-badge{font-size:10px;background:var(--gold);color:#000;padding:2px 6px;border-radius:6px;font-weight:800;}
+.player-item.me{border-color:var(--neon);}
+
+/* ============================== 結果画面 ============================== */
+#resultScreen{z-index:4;}
+.winner-name{font-size:clamp(34px,10vw,72px);font-weight:900;color:var(--gold);text-shadow:0 0 30px rgba(255,215,0,.8);
+  animation:winpop 1.2s ease-out;}
+@keyframes winpop{0%{transform:scale(0);opacity:0;}60%{transform:scale(1.25);}100%{transform:scale(1);opacity:1;}}
+.result-list{width:min(90vw,420px);margin:18px 0;}
+.result-row{display:grid;grid-template-columns:40px 1fr auto;gap:10px;padding:12px;border-bottom:1px solid var(--line);align-items:center;}
+.result-row .p{font-weight:900;color:var(--gold);text-align:center;}
+.msg{color:#ff7a7a;font-size:14px;text-align:center;min-height:18px;}
+.countdown{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);}
+.countdown.active{display:flex;}
+.countdown span{font-size:clamp(80px,30vw,200px);font-weight:900;color:var(--neon);text-shadow:0 0 40px rgba(63,224,255,.9);animation:cd .9s ease-out;}
+@keyframes cd{0%{transform:scale(2.2);opacity:0;}40%{opacity:1;}100%{transform:scale(.7);opacity:0;}}
+.spin{display:inline-block;animation:rot 1s linear infinite;}
+@keyframes rot{100%{transform:rotate(360deg);}}
+.confetti{position:fixed;inset:0;z-index:55;pointer-events:none;}
+h1.section{font-size:24px;margin:6px 0 10px;color:var(--neon);}
+.hint{font-size:11px;color:#6b7488;text-align:center;margin-top:8px;}
+.gameover-tag{position:fixed;left:50%;top:38%;transform:translateX(-50%);z-index:25;font-size:40px;font-weight:900;color:#ff5b5b;display:none;text-shadow:0 0 20px rgba(255,0,0,.6);}
+.gameover-tag.show{display:block;}
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+<div id="flash"></div>
+<div class="fx" id="fx"></div>
+<div class="gameover-tag" id="goTag">GAME OVER</div>
+<div class="countdown" id="countdown"><span id="cdNum"></span></div>
+<canvas class="confetti" id="confetti" style="display:none"></canvas>
+
+<!-- ================= タイトル ================= -->
+<div class="screen active" id="titleScreen">
+  <div class="logo">テトリス神。</div>
+  <div class="tagline">T E T R I S　G O D</div>
+  <div class="menu">
+    <button onclick="UI.startSolo()">🎮 ソロプレイ</button>
+    <button onclick="UI.goMultiplayer()">⚔️ 対戦プレイ</button>
+    <button onclick="UI.showRanking()">🏆 ランキング</button>
+  </div>
+</div>
+
+<!-- ================= ソロ ゲーム ================= -->
+<div class="screen" id="gameScreen">
+  <div class="game-wrap">
+    <div class="play-area">
+      <div class="side left">
+        <div class="panel"><div class="label">HOLD</div><canvas class="mini" id="soloHold" width="72" height="56"></canvas></div>
+        <div class="panel"><div class="label">SCORE</div><div class="val small" id="soloScore">0</div></div>
+        <div class="panel"><div class="label">LEVEL</div><div class="val small" id="soloLevel">1</div></div>
+        <div class="panel"><div class="label">LINES</div><div class="val small" id="soloLines">0</div></div>
+      </div>
+      <canvas class="field" id="soloField" width="240" height="480"></canvas>
+      <div class="side">
+        <div class="panel"><div class="label">NEXT</div><canvas class="mini" id="soloNext" width="72" height="176"></canvas></div>
+      </div>
+    </div>
+    <div id="soloController"></div>
+  </div>
+</div>
+
+<!-- ================= 対戦 ゲーム ================= -->
+<div class="screen" id="mpGameScreen">
+  <div class="game-wrap">
+    <div class="opp-bar" id="oppBar"></div>
+    <div class="play-area">
+      <div class="side left">
+        <div class="panel"><div class="label">HOLD</div><canvas class="mini" id="mpHold" width="72" height="56"></canvas></div>
+        <div class="panel"><div class="label">SCORE</div><div class="val small" id="mpScore">0</div></div>
+        <div class="panel"><div class="label">LEVEL</div><div class="val small" id="mpLevel">1</div></div>
+        <div class="panel"><div class="label">LINES</div><div class="val small" id="mpLines">0</div></div>
+      </div>
+      <canvas class="field" id="mpField" width="240" height="480"></canvas>
+      <div class="side">
+        <div class="panel"><div class="label">NEXT</div><canvas class="mini" id="mpNext" width="72" height="176"></canvas></div>
+      </div>
+    </div>
+    <div id="mpController"></div>
+  </div>
+</div>
+
+<!-- ================= ゲームオーバー モーダル（ソロ） ================= -->
+<div class="modal" id="overModal">
+  <div class="modal-box" style="text-align:center">
+    <h2 style="color:#ff5b5b">GAME OVER</h2>
+    <div id="overRankMsg" style="font-size:14px;color:var(--gold);min-height:20px;margin-bottom:6px"></div>
+    <div class="rank-row" style="border:none;justify-content:center">
+      <div></div>
+      <div style="text-align:left">
+        <div style="font-weight:800;font-size:20px" id="overScore">0</div>
+        <div class="meta" id="overMeta"></div>
+      </div>
+      <div></div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn" onclick="UI.soloRetry()">もう一度</button>
+      <button class="btn secondary" onclick="UI.soloToTitle()">タイトルへ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= ランキング モーダル ================= -->
+<div class="modal" id="rankingModal">
+  <div class="modal-box">
+    <h2>🏆 ランキング</h2>
+    <div id="rankingList"></div>
+    <button class="btn full secondary" style="margin-top:14px" onclick="UI.closeModal('rankingModal')">閉じる</button>
+  </div>
+</div>
+
+<!-- ================= 名前入力 ================= -->
+<div class="modal" id="nameModal">
+  <div class="modal-box">
+    <h2>⚔️ 対戦プレイ</h2>
+    <input type="text" id="playerName" placeholder="プレイヤー名" maxlength="10">
+    <div style="height:14px"></div>
+    <button class="btn full" onclick="UI.nameNext()">つぎへ</button>
+    <button class="btn full secondary" style="margin-top:10px" onclick="UI.closeModal('nameModal')">もどる</button>
+  </div>
+</div>
+
+<!-- ================= ルーム作成/参加 ================= -->
+<div class="modal" id="roomModal">
+  <div class="modal-box">
+    <h2>ルーム</h2>
+    <button class="btn full" onclick="RoomManager.createRoom()">ルームを作成する</button>
+    <div style="height:18px"></div>
+    <input type="tel" id="joinCode" placeholder="4桁コード" maxlength="4" inputmode="numeric">
+    <div style="height:10px"></div>
+    <button class="btn full" onclick="RoomManager.joinRoom()">参加する</button>
+    <div class="msg" id="roomMsg"></div>
+    <button class="btn full secondary" style="margin-top:10px" onclick="UI.closeModal('roomModal')">もどる</button>
+  </div>
+</div>
+
+<!-- ================= ロビー ================= -->
+<div class="screen" id="lobbyScreen">
+  <div class="modal-box" style="background:var(--panel)">
+    <h2>ロビー</h2>
+    <div class="label" style="text-align:center;font-size:11px;color:#7e879b">ルームコード</div>
+    <div class="code-display" id="lobbyCode">----</div>
+    <button class="btn full secondary" onclick="RoomManager.copyCode()">📋 コードをコピー</button>
+    <h1 class="section" style="font-size:16px;margin-top:18px">参加者</h1>
+    <div class="player-list" id="playerList"></div>
+    <button class="btn full" id="startBtn" style="display:none" onclick="RoomManager.startGame()">ゲーム開始</button>
+    <div class="hint" id="lobbyHint">ホストの開始を待っています…</div>
+    <button class="btn full secondary" style="margin-top:10px" onclick="RoomManager.leaveRoom()">退出する</button>
+  </div>
+</div>
+
+<!-- ================= 結果画面 ================= -->
+<div class="screen" id="resultScreen">
+  <div style="text-align:center;width:100%;overflow:auto">
+    <div style="font-size:22px;color:var(--gold)">🏆 Winner 🏆</div>
+    <div class="winner-name" id="winnerName">-</div>
+    <div style="font-size:18px;color:#cdd6ea" id="winnerScore"></div>
+    <h1 class="section" style="margin-top:20px;font-size:16px">─── 全プレイヤー結果 ───</h1>
+    <div class="result-list" id="resultList"></div>
+    <div class="row" style="width:min(90vw,420px);margin:0 auto">
+      <button class="btn" onclick="ResultScreen.rematch()">もう一度対戦</button>
+      <button class="btn secondary" onclick="ResultScreen.toTitle()">タイトルへ</button>
+    </div>
+  </div>
+</div>
+
+<!-- =================================================================== -->
+<!-- Firebase SDK (CDN, compat版) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+/* ===================================================================
+ * ★ここにあなたのFirebase設定を貼り付けてください
+ * Firebase Console → プロジェクト設定 → マイアプリ → SDK設定と構成 からコピー
+ * （対戦機能を使わない場合は、ソロプレイ・ランキングはこのままでも動作します）
+ * =================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBep2KE-6NsQFbRDXfum5Pb8s3eyJoyHT0",
+  authDomain: "tetris-god.firebaseapp.com",
+  databaseURL: "https://tetris-god-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "tetris-god",
+  storageBucket: "tetris-god.firebasestorage.app",
+  messagingSenderId: "112375802420",
+  appId: "1:112375802420:web:8e607bae36a463dd973861"
+};
+
+/* ===================================================================
+ * 定数・テトロミノ定義
+ * =================================================================== */
+const COLS=10, ROWS=20, BUFFER=2, TOTAL_ROWS=ROWS+BUFFER, BLOCK=24;
+const COLORS={I:'#3fe0ff',O:'#ffd23f',T:'#a86bff',S:'#46e36b',Z:'#ff5b6e',J:'#4a7bff',L:'#ff9b3d',G:'#2a3245'};
+
+// 各ピースのスポーン形状（3x3 または 4x4 のマトリクス）。回転は行列回転＋SRSキックで処理。
+const SHAPES={
+  I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  O:[[1,1],[1,1]],
+  T:[[0,1,0],[1,1,1],[0,0,0]],
+  S:[[0,1,1],[1,1,0],[0,0,0]],
+  Z:[[1,1,0],[0,1,1],[0,0,0]],
+  J:[[1,0,0],[1,1,1],[0,0,0]],
+  L:[[0,0,1],[1,1,1],[0,0,0]]
+};
+
+// SRSウォールキック（y軸は上方向が正。グリッドでは下が正なので適用時にy符号を反転）
+const KICKS_JLSTZ={
+  '0>1':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '1>0':[[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  '1>2':[[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  '2>1':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '2>3':[[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+  '3>2':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '3>0':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '0>3':[[0,0],[1,0],[1,1],[0,-2],[1,-2]]
+};
+const KICKS_I={
+  '0>1':[[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+  '1>0':[[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+  '1>2':[[0,0],[-1,0],[2,0],[-1,-2],[2,1]],
+  '2>1':[[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+  '2>3':[[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+  '3>2':[[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+  '3>0':[[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+  '0>3':[[0,0],[-1,0],[2,0],[-1,-2],[2,1]]
+};
+
+function rotateMatrix(m,dir){
+  const n=m.length, r=[];
+  for(let i=0;i<n;i++){r.push(new Array(n).fill(0));}
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+    if(dir>0) r[x][n-1-y]=m[y][x];   // 時計回り
+    else      r[n-1-x][y]=m[y][x];   // 反時計回り
+  }
+  return r;
+}
+
+/* ===================================================================
+ * AudioEngine — Web Audio APIによるサウンド生成
+ * =================================================================== */
+const AudioEngine=(()=>{
+  let ctx=null, master=null, bgmTimer=null, bgmOn=false, muted=false;
+  function init(){
+    if(ctx) return;
+    const AC=window.AudioContext||window.webkitAudioContext;
+    ctx=new AC();
+    master=ctx.createGain(); master.gain.value=0.5; master.connect(ctx.destination);
+  }
+  function resume(){ if(ctx&&ctx.state==='suspended') ctx.resume(); }
+  function tone(freq,dur,type='square',vol=0.3,delay=0){
+    if(!ctx||muted) return;
+    const t=ctx.currentTime+delay;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.02);
+  }
+  function chord(freqs,dur,type='triangle',vol=0.22){ freqs.forEach(f=>tone(f,dur,type,vol)); }
+  function sweep(f1,f2,dur,type='sawtooth',vol=0.25){
+    if(!ctx||muted) return;
+    const t=ctx.currentTime, o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=type; o.frequency.setValueAtTime(f1,t); o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+    g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.02);
+  }
+  const S={
+    move:()=>tone(160,0.04,'square',0.18),
+    rotate:()=>tone(440,0.05,'square',0.18),
+    soft:()=>tone(220,0.03,'sine',0.12),
+    hard:()=>{tone(90,0.12,'square',0.35); sweep(200,60,0.12,'sawtooth',0.25);},
+    hold:()=>{tone(330,0.06,'sine',0.2); tone(440,0.06,'sine',0.15,0.05);},
+    line:(n)=>{ for(let i=0;i<n;i++) tone(440+i*120,0.09,'square',0.25,i*0.05); },
+    tetris:()=>chord([523,659,784,1047],0.4,'triangle',0.28),
+    tssingle:()=>{tone(523,0.08,'square',0.25);tone(784,0.1,'square',0.25,0.08);},
+    tsdouble:()=>{[523,659,880].forEach((f,i)=>tone(f,0.1,'square',0.25,i*0.07));},
+    tstriple:()=>chord([659,880,1047,1319],0.45,'triangle',0.3),
+    levelup:()=>{[523,659,784,1047].forEach((f,i)=>tone(f,0.12,'triangle',0.25,i*0.06));},
+    gameover:()=>{[440,392,330,262].forEach((f,i)=>tone(f,0.2,'sawtooth',0.25,i*0.12));},
+    roomCreate:()=>{[659,880].forEach((f,i)=>tone(f,0.12,'sine',0.25,i*0.08));},
+    joinChime:()=>{[784,1047].forEach((f,i)=>tone(f,0.1,'sine',0.22,i*0.1));},
+    cdBeep:()=>tone(440,0.12,'square',0.3),
+    cdGo:()=>chord([784,1047,1319],0.3,'triangle',0.3),
+    oppOver:()=>{[523,659].forEach((f,i)=>tone(f,0.1,'sine',0.15,i*0.08));},
+    win:()=>{[523,659,784,1047,1319].forEach((f,i)=>tone(f,0.18,'triangle',0.3,i*0.09));},
+    lose:()=>{[330,262].forEach((f,i)=>tone(f,0.2,'sawtooth',0.22,i*0.12));}
+  };
+  // シンプルなループBGM
+  const bgmSeq=[262,330,392,330,294,349,440,349,262,330,392,523,440,392,330,294];
+  let bgmIdx=0;
+  function startBGM(){
+    if(bgmOn||!ctx) return; bgmOn=true; bgmIdx=0;
+    bgmTimer=setInterval(()=>{
+      if(muted) return;
+      const f=bgmSeq[bgmIdx%bgmSeq.length];
+      tone(f,0.16,'triangle',0.07);
+      tone(f/2,0.16,'sine',0.05);
+      bgmIdx++;
+    },230);
+  }
+  function stopBGM(){ bgmOn=false; if(bgmTimer){clearInterval(bgmTimer);bgmTimer=null;} }
+  return {init,resume,...S,startBGM,stopBGM,setMute:(m)=>muted=m,isMuted:()=>muted};
+})();
+
+/* ===================================================================
+ * Ranking — localStorage管理（ソロ）
+ * =================================================================== */
+const Ranking=(()=>{
+  const KEY='tetrisGod_ranking';
+  function load(){ try{return JSON.parse(localStorage.getItem(KEY))||[];}catch(e){return [];} }
+  function save(list){ localStorage.setItem(KEY,JSON.stringify(list)); }
+  // 戻り値: ランクイン順位(1-10) or 0
+  function submit(score,lines,level){
+    let list=load();
+    const entry={score,lines,level,date:new Date().toLocaleDateString('ja-JP')};
+    list.push(entry);
+    list.sort((a,b)=>b.score-a.score);
+    list=list.slice(0,10);
+    save(list);
+    const rank=list.indexOf(entry)+1;
+    return (rank>=1&&rank<=10&&list[rank-1]===entry)?rank:0;
+  }
+  function render(el){
+    const list=load();
+    if(!list.length){ el.innerHTML='<p style="text-align:center;color:#7e879b;padding:20px">まだ記録がありません</p>'; return; }
+    el.innerHTML=list.map((r,i)=>`<div class="rank-row">
+      <div class="pos">${i+1}</div>
+      <div><div style="font-weight:800">${r.score.toLocaleString()} pts</div>
+        <div class="meta">${r.lines} lines ・ Lv.${r.level} ・ ${r.date}</div></div>
+      <div>${i===0?'👑':''}</div></div>`).join('');
+  }
+  return {submit,render};
+})();
+
+/* ===================================================================
+ * Game — フィールド・ミノ・スコア・ロジック（GameState）
+ * =================================================================== */
+class Game{
+  constructor(onUpdate){
+    this.onUpdate=onUpdate||(()=>{});
+    this.reset();
+  }
+  reset(){
+    this.board=[]; for(let y=0;y<TOTAL_ROWS;y++) this.board.push(new Array(COLS).fill(null));
+    this.bag=[]; this.next=[]; this.refillNext();
+    this.hold=null; this.holdUsed=false;
+    this.score=0; this.lines=0; this.level=1;
+    this.b2b=false; this.combo=-1;
+    this.over=false; this.paused=false;
+    this.dropTimer=0; this.lockTimer=0; this.locking=false;
+    this.lastWasRotation=false; this.lastKickIndex=0;
+    this.spawnPiece();
+  }
+  refillNext(){ while(this.next.length<5) this.next.push(this.nextFromBag()); }
+  nextFromBag(){
+    if(this.bag.length===0){
+      this.bag=['I','O','T','S','Z','J','L'];
+      for(let i=this.bag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[this.bag[i],this.bag[j]]=[this.bag[j],this.bag[i]];}
+    }
+    return this.bag.pop();
+  }
+  spawnPiece(type){
+    const t=type||this.next.shift(); this.refillNext();
+    // バッファ最上段付近にスポーン（可視最上行に出現）
+    this.cur={type:t, matrix:SHAPES[t].map(r=>r.slice()), rot:0,
+      x:Math.floor((COLS-SHAPES[t][0].length)/2), y:BUFFER-1};
+    this.lastWasRotation=false; this.locking=false; this.lockTimer=0;
+    if(this.collides(this.cur.matrix,this.cur.x,this.cur.y)){ this.gameOver(); }
+  }
+  collides(m,px,py){
+    for(let y=0;y<m.length;y++)for(let x=0;x<m[y].length;x++){
+      if(!m[y][x]) continue;
+      const nx=px+x, ny=py+y;
+      if(nx<0||nx>=COLS||ny>=TOTAL_ROWS) return true;
+      if(ny>=0&&this.board[ny][nx]) return true;
+    }
+    return false;
+  }
+  move(dx){
+    if(this.over) return false;
+    if(!this.collides(this.cur.matrix,this.cur.x+dx,this.cur.y)){
+      this.cur.x+=dx; this.lastWasRotation=false; this.resetLock(); AudioEngine.move(); return true;
+    }
+    return false;
+  }
+  rotate(dir){
+    if(this.over||this.cur.type==='O') return;
+    const from=this.cur.rot, to=(from+(dir>0?1:3))%4;
+    const newM=rotateMatrix(this.cur.matrix,dir);
+    const table=this.cur.type==='I'?KICKS_I:KICKS_JLSTZ;
+    const key=from+'>'+to;
+    const kicks=table[key]||[[0,0]];
+    for(let i=0;i<kicks.length;i++){
+      const kx=kicks[i][0], ky=-kicks[i][1]; // y反転
+      if(!this.collides(newM,this.cur.x+kx,this.cur.y+ky)){
+        this.cur.matrix=newM; this.cur.x+=kx; this.cur.y+=ky; this.cur.rot=to;
+        this.lastWasRotation=true; this.lastKickIndex=i; this.resetLock();
+        AudioEngine.rotate(); return;
+      }
+    }
+  }
+  resetLock(){ if(this.locking){ this.lockTimer=0; } }
+  ghostY(){
+    let gy=this.cur.y;
+    while(!this.collides(this.cur.matrix,this.cur.x,gy+1)) gy++;
+    return gy;
+  }
+  softDrop(){
+    if(this.over) return;
+    if(!this.collides(this.cur.matrix,this.cur.x,this.cur.y+1)){
+      this.cur.y++; this.score+=1; this.lastWasRotation=false; AudioEngine.soft(); this.onUpdate();
+    }
+  }
+  hardDrop(){
+    if(this.over) return;
+    let d=0;
+    while(!this.collides(this.cur.matrix,this.cur.x,this.cur.y+1)){ this.cur.y++; d++; }
+    this.score+=d*2; AudioEngine.hard();
+    this.lockPiece();
+  }
+  holdPiece(){
+    if(this.over||this.holdUsed) return;
+    AudioEngine.hold();
+    const curType=this.cur.type;
+    if(this.hold===null){ this.hold=curType; this.spawnPiece(); }
+    else{ const h=this.hold; this.hold=curType; this.spawnPiece(h); }
+    this.holdUsed=true; this.onUpdate();
+  }
+  // T-Spin判定
+  checkTSpin(){
+    if(this.cur.type!=='T'||!this.lastWasRotation) return 'none';
+    // 3x3ボックスの4コーナー
+    const bx=this.cur.x, by=this.cur.y;
+    const corners=[[bx,by],[bx+2,by],[bx,by+2],[bx+2,by+2]]; // TL,TR,BL,BR
+    const filled=corners.map(([cx,cy])=> (cx<0||cx>=COLS||cy>=TOTAL_ROWS)?true:(cy>=0&&!!this.board[cy][cx]));
+    const count=filled.filter(Boolean).length;
+    if(count<3) return 'none';
+    // 5段目キックでの成功は常に正規T-Spin
+    if(this.lastKickIndex===4) return 'full';
+    // 正面コーナー定義（rot: 0=上,1=右,2=下,3=左）
+    let front;
+    if(this.cur.rot===0) front=[filled[0],filled[1]];      // TL,TR
+    else if(this.cur.rot===1) front=[filled[1],filled[3]]; // TR,BR
+    else if(this.cur.rot===2) front=[filled[2],filled[3]]; // BL,BR
+    else front=[filled[0],filled[2]];                       // TL,BL
+    if(front[0]&&front[1]) return 'full';
+    return 'mini';
+  }
+  lockPiece(){
+    const m=this.cur.matrix;
+    for(let y=0;y<m.length;y++)for(let x=0;x<m[y].length;x++){
+      if(m[y][x]){ const ny=this.cur.y+y, nx=this.cur.x+x; if(ny>=0&&ny<TOTAL_ROWS) this.board[ny][nx]=this.cur.type; }
+    }
+    const tspin=this.checkTSpin();
+    // ライン消去
+    let cleared=[];
+    for(let y=0;y<TOTAL_ROWS;y++){ if(this.board[y].every(c=>c)) cleared.push(y); }
+    cleared.forEach(y=>{ this.board.splice(y,1); this.board.unshift(new Array(COLS).fill(null)); });
+    const n=cleared.length;
+    this.applyScore(n,tspin);
+    // 上端到達でゲームオーバー判定はspawn時
+    this.holdUsed=false; this.locking=false; this.lockTimer=0;
+    this.spawnPiece();
+    this.onUpdate();
+  }
+  applyScore(n,tspin){
+    let base=0, eligible=false, fxText='', fxClass='';
+    if(tspin==='full'){
+      eligible=(n>=1);
+      if(n===0){base=400;fxText='T-SPIN';}
+      else if(n===1){base=800;fxText='T-SPIN SINGLE';AudioEngine.tssingle();}
+      else if(n===2){base=1200;fxText='T-SPIN DOUBLE';fxClass='shakeit';AudioEngine.tsdouble();}
+      else if(n===3){base=1600;fxText='T-SPIN TRIPLE';fxClass='gold particles';AudioEngine.tstriple();}
+      if(n===0) AudioEngine.tssingle();
+    } else if(tspin==='mini'){
+      eligible=(n>=1);
+      if(n===0){base=100;fxText='T-SPIN MINI';}
+      else if(n===1){base=200;fxText='T-SPIN MINI';AudioEngine.tssingle();}
+      else {base=400;fxText='T-SPIN MINI';}
+    } else {
+      if(n===1){base=100;}
+      else if(n===2){base=300;}
+      else if(n===3){base=500;}
+      else if(n===4){base=800;eligible=true;fxText='TETRIS';fxClass='gold';AudioEngine.tetris();}
+    }
+    // Back-to-Back
+    let b2bBonus=false;
+    if(n>0||tspin!=='none'){
+      if(eligible){
+        if(this.b2b){ b2bBonus=true; }
+        this.b2b=true;
+      } else if(n>0){ this.b2b=false; }
+    }
+    let pts=base*this.level;
+    if(b2bBonus) pts=Math.floor(pts*1.5);
+    this.score+=pts;
+    if(n>0) this.lines+=n;
+    // レベルアップ
+    const newLevel=Math.floor(this.lines/10)+1;
+    if(newLevel>this.level){ this.level=newLevel; this.onLevelUp&&this.onLevelUp(); }
+    // 演出コール
+    if(fxText&&this.onFx){
+      this.onFx(fxText,fxClass,b2bBonus);
+    }
+    if(n>0&&this.onLineClear) this.onLineClear(n);
+  }
+  // 重力（レベル別速度）
+  gravityInterval(){
+    const speeds=[1000,793,618,473,355,262,190,135,94,64,43,28,18,11,7,5,5,5,3,3];
+    const idx=Math.min(this.level-1,speeds.length-1);
+    return Math.max(50,speeds[idx]);
+  }
+  tick(dt){
+    if(this.over||this.paused) return;
+    this.dropTimer+=dt;
+    const gi=this.gravityInterval();
+    if(this.dropTimer>=gi){
+      this.dropTimer=0;
+      if(!this.collides(this.cur.matrix,this.cur.x,this.cur.y+1)){
+        this.cur.y++;
+      } else {
+        // ロックディレイ
+        if(!this.locking){ this.locking=true; this.lockTimer=0; }
+      }
+    }
+    if(this.locking){
+      this.lockTimer+=dt;
+      if(this.collides(this.cur.matrix,this.cur.x,this.cur.y+1)){
+        if(this.lockTimer>=500){ this.lockPiece(); }
+      } else { this.locking=false; }
+    }
+  }
+  gameOver(){ this.over=true; AudioEngine.gameover(); if(this.onGameOver) this.onGameOver(); }
+}
+
+/* ===================================================================
+ * Renderer — Canvas描画
+ * =================================================================== */
+const Renderer=(()=>{
+  function drawCell(ctx,x,y,color,size,ghost){
+    const px=x*size, py=y*size;
+    if(ghost){
+      ctx.fillStyle=color; ctx.globalAlpha=0.22; ctx.fillRect(px,py,size,size); ctx.globalAlpha=1;
+      ctx.strokeStyle=color; ctx.globalAlpha=0.5; ctx.strokeRect(px+1,py+1,size-2,size-2); ctx.globalAlpha=1;
+      return;
+    }
+    ctx.fillStyle=color; ctx.fillRect(px,py,size,size);
+    ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.fillRect(px,py,size,size*0.18);
+    ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fillRect(px,py+size*0.82,size,size*0.18);
+    ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.lineWidth=1; ctx.strokeRect(px+0.5,py+0.5,size-1,size-1);
+  }
+  function field(canvas,game){
+    const ctx=canvas.getContext('2d'); const size=BLOCK;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // グリッド背景
+    ctx.strokeStyle='rgba(255,255,255,0.03)';
+    for(let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*size,0);ctx.lineTo(x*size,ROWS*size);ctx.stroke();}
+    for(let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*size);ctx.lineTo(COLS*size,y*size);ctx.stroke();}
+    // 固定ブロック（バッファ行は描画しない）
+    for(let y=BUFFER;y<TOTAL_ROWS;y++)for(let x=0;x<COLS;x++){
+      if(game.board[y][x]) drawCell(ctx,x,y-BUFFER,COLORS[game.board[y][x]],size,false);
+    }
+    if(game.cur&&!game.over){
+      // ゴースト
+      const gy=game.ghostY();
+      const m=game.cur.matrix;
+      for(let y=0;y<m.length;y++)for(let x=0;x<m[y].length;x++){
+        if(m[y][x]){ const dy=gy+y-BUFFER; if(dy>=0) drawCell(ctx,game.cur.x+x,dy,COLORS[game.cur.type],size,true); }
+      }
+      // 現在ミノ
+      for(let y=0;y<m.length;y++)for(let x=0;x<m[y].length;x++){
+        if(m[y][x]){ const dy=game.cur.y+y-BUFFER; if(dy>=0) drawCell(ctx,game.cur.x+x,dy,COLORS[game.cur.type],size,false); }
+      }
+    }
+    if(game.over){ ctx.fillStyle='rgba(10,12,20,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height); }
+  }
+  function miniPiece(ctx,type,ox,oy,size){
+    const m=SHAPES[type]; const w=m[0].length;
+    for(let y=0;y<m.length;y++)for(let x=0;x<m[y].length;x++){
+      if(m[y][x]){
+        const px=ox+x*size, py=oy+y*size;
+        ctx.fillStyle=COLORS[type]; ctx.fillRect(px,py,size,size);
+        ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.strokeRect(px+0.5,py+0.5,size-1,size-1);
+      }
+    }
+  }
+  function hold(canvas,game){
+    const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(!game.hold) return;
+    const s=14, m=SHAPES[game.hold], w=m[0].length, h=m.length;
+    const ox=(canvas.width-w*s)/2, oy=(canvas.height-h*s)/2;
+    ctx.globalAlpha=game.holdUsed?0.4:1;
+    miniPiece(ctx,game.hold,ox,oy,s);
+    ctx.globalAlpha=1;
+  }
+  function next(canvas,game){
+    const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height);
+    const s=14;
+    for(let i=0;i<3;i++){
+      const t=game.next[i]; if(!t) continue;
+      const m=SHAPES[t], w=m[0].length;
+      const ox=(canvas.width-w*s)/2, oy=8+i*56;
+      miniPiece(ctx,t,ox,oy,s);
+    }
+  }
+  return {field,hold,next};
+})();
+
+/* ===================================================================
+ * 演出（FX）ヘルパー
+ * =================================================================== */
+const FX=(()=>{
+  let confettiAnim=null;
+  function text(msg,cls){
+    const el=document.getElementById('fx');
+    el.className='fx'; void el.offsetWidth;
+    if(cls&&cls.includes('gold')) el.classList.add('gold');
+    if(cls&&cls.includes('b2b')) el.classList.add('b2b');
+    el.textContent=msg; el.classList.add('show');
+  }
+  function b2b(){
+    const el=document.getElementById('fx');
+    setTimeout(()=>{ el.className='fx b2b'; void el.offsetWidth; el.textContent='BACK-TO-BACK'; el.classList.add('show'); },350);
+  }
+  function flash(){ const f=document.getElementById('flash'); f.className=''; void f.offsetWidth; f.classList.add('go'); }
+  function shake(canvasId){ const c=document.getElementById(canvasId); if(!c)return; c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); }
+  function confetti(){
+    const c=document.getElementById('confetti'); c.style.display='block';
+    c.width=innerWidth; c.height=innerHeight; const ctx=c.getContext('2d');
+    const parts=[]; const cols=['#FFD700','#3fe0ff','#a86bff','#ff5b6e','#46e36b','#ff9b3d'];
+    for(let i=0;i<160;i++) parts.push({x:Math.random()*c.width,y:-Math.random()*c.height,
+      vx:(Math.random()-0.5)*3,vy:2+Math.random()*4,s:5+Math.random()*7,
+      col:cols[Math.floor(Math.random()*cols.length)],rot:Math.random()*6,vr:(Math.random()-0.5)*0.3});
+    let frames=0;
+    if(confettiAnim) cancelAnimationFrame(confettiAnim);
+    function loop(){
+      ctx.clearRect(0,0,c.width,c.height); frames++;
+      parts.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.fillStyle=p.col;
+        ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s); ctx.restore(); });
+      if(frames<260) confettiAnim=requestAnimationFrame(loop);
+      else { c.style.display='none'; ctx.clearRect(0,0,c.width,c.height); }
+    }
+    loop();
+  }
+  return {text,b2b,flash,shake,confetti};
+})();
+
+/* ===================================================================
+ * InputHandler — キーボード + タッチ
+ * =================================================================== */
+const InputHandler=(()=>{
+  let game=null, fieldId=null;
+  const DAS=167, ARR=33;
+  let moveDir=0, dasTimer=null, arrTimer=null;
+  let softHeld=false, softTimer=null;
+
+  function bind(g,fid){ game=g; fieldId=fid; }
+  function unbind(){ stopMove(); stopSoft(); game=null; }
+
+  function doMove(dir){ if(game) game.move(dir); UI.refresh(); }
+  function startMove(dir){
+    if(moveDir===dir) return;
+    stopMove(); moveDir=dir; doMove(dir);
+    dasTimer=setTimeout(()=>{ arrTimer=setInterval(()=>doMove(dir),ARR); },DAS);
+  }
+  function stopMove(){ moveDir=0; clearTimeout(dasTimer); clearInterval(arrTimer); }
+  function startSoft(){ if(softHeld||!game)return; softHeld=true; game.softDrop(); softTimer=setInterval(()=>game.softDrop(),50); }
+  function stopSoft(){ softHeld=false; clearInterval(softTimer); }
+
+  function action(a){
+    if(!game||game.over) return;
+    AudioEngine.resume();
+    switch(a){
+      case 'left': startMove(-1); break;
+      case 'right': startMove(1); break;
+      case 'down': startSoft(); break;
+      case 'up': game.hardDrop(); UI.refresh(); break;
+      case 'rotR': game.rotate(1); UI.refresh(); break;
+      case 'rotL': game.rotate(-1); UI.refresh(); break;
+      case 'hold': game.holdPiece(); UI.refresh(); break;
+    }
+  }
+  function release(a){
+    if(a==='left'&&moveDir===-1) stopMove();
+    if(a==='right'&&moveDir===1) stopMove();
+    if(a==='down') stopSoft();
+  }
+
+  // キーボード
+  const keymap={'ArrowLeft':'left','ArrowRight':'right','ArrowDown':'down','ArrowUp':'up',
+    'KeyX':'rotR','KeyZ':'rotL','Space':'up','ShiftLeft':'hold','KeyC':'hold','KeyA':'rotL','KeyD':'rotR'};
+  const pressed={};
+  document.addEventListener('keydown',e=>{
+    const a=keymap[e.code]; if(!a) return; e.preventDefault();
+    if(pressed[e.code]&&(a==='left'||a==='right'||a==='down')) return;
+    pressed[e.code]=true; action(a);
+  });
+  document.addEventListener('keyup',e=>{
+    const a=keymap[e.code]; if(!a) return; pressed[e.code]=false; release(a);
+  });
+
+  return {bind,unbind,action,release};
+})();
+
+/* ===================================================================
+ * コントローラーHTML生成 + タッチバインド
+ * =================================================================== */
+function buildController(containerId){
+  const c=document.getElementById(containerId);
+  c.innerHTML=`
+    <div class="controller">
+      <div class="dpad">
+        <button data-act="up" class="up">▲</button>
+        <button data-act="left" class="left">◀</button>
+        <button class="mid"></button>
+        <button data-act="right" class="right">▶</button>
+        <button data-act="down" class="down">▼</button>
+      </div>
+      <div class="center-ctrl">
+        <button data-act="hold">L (HOLD)</button>
+        <button data-act="hold">R (HOLD)</button>
+      </div>
+      <div class="abxy">
+        <button data-act="rotR" class="y">Y</button>
+        <button data-act="rotL" class="x">X</button>
+        <button data-act="rotR" class="a">A</button>
+        <button data-act="rotL" class="b">B</button>
+      </div>
+    </div>`;
+  c.querySelectorAll('button[data-act]').forEach(btn=>{
+    const act=btn.dataset.act;
+    const press=(e)=>{ e.preventDefault(); InputHandler.action(act); };
+    const rel=(e)=>{ e.preventDefault(); InputHandler.release(act); };
+    btn.addEventListener('touchstart',press,{passive:false});
+    btn.addEventListener('touchend',rel,{passive:false});
+    btn.addEventListener('touchcancel',rel,{passive:false});
+    btn.addEventListener('mousedown',press);
+    btn.addEventListener('mouseup',rel);
+    btn.addEventListener('mouseleave',rel);
+  });
+}
+
+/* ===================================================================
+ * ゲームループ管理（ソロ・対戦共通）
+ * =================================================================== */
+const Loop=(()=>{
+  let game=null, raf=null, last=0, mode='solo';
+  let ids={field:'',hold:'',next:'',score:'',level:'',lines:''};
+  function start(g,m,elemIds){
+    game=g; mode=m; ids=elemIds; last=performance.now();
+    if(raf) cancelAnimationFrame(raf);
+    function frame(now){
+      const dt=now-last; last=now;
+      if(game&&!game.over){ game.tick(dt); }
+      render();
+      raf=requestAnimationFrame(frame);
+    }
+    raf=requestAnimationFrame(frame);
+  }
+  function stop(){ if(raf){cancelAnimationFrame(raf);raf=null;} }
+  function render(){
+    if(!game) return;
+    Renderer.field(document.getElementById(ids.field),game);
+    Renderer.hold(document.getElementById(ids.hold),game);
+    Renderer.next(document.getElementById(ids.next),game);
+    document.getElementById(ids.score).textContent=game.score.toLocaleString();
+    document.getElementById(ids.level).textContent=game.level;
+    document.getElementById(ids.lines).textContent=game.lines;
+  }
+  return {start,stop,render,getGame:()=>game,getMode:()=>mode};
+})();
+
+/* ===================================================================
+ * UI — 画面遷移・モーダル・ソロ管理
+ * =================================================================== */
+const UI=(()=>{
+  function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); requestAnimationFrame(fitGame); }
+  function openModal(id){ document.getElementById(id).classList.add('active'); }
+  function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+
+  function initAudio(){ AudioEngine.init(); AudioEngine.resume(); }
+
+  function startSolo(){
+    initAudio();
+    buildController('soloController');
+    document.getElementById('goTag').classList.remove('show');
+    const g=new Game();
+    g.onFx=(text,cls,b2b)=>{
+      FX.text(text,cls);
+      if(cls.includes('shakeit')) { FX.shake('soloField'); }
+      if(cls.includes('gold')||cls.includes('particles')) FX.confetti();
+      if(b2b) FX.b2b();
+    };
+    g.onLevelUp=()=>{ FX.flash(); AudioEngine.levelup(); };
+    g.onLineClear=(n)=>{ if(n<4) AudioEngine.line(n); };
+    g.onGameOver=()=>{ soloGameOver(g); };
+    InputHandler.bind(g,'soloField');
+    AudioEngine.startBGM();
+    show('gameScreen');
+    Loop.start(g,'solo',{field:'soloField',hold:'soloHold',next:'soloNext',score:'soloScore',level:'soloLevel',lines:'soloLines'});
+  }
+  function soloGameOver(g){
+    Loop.render();
+    document.getElementById('goTag').classList.add('show');
+    AudioEngine.stopBGM();
+    InputHandler.unbind();
+    setTimeout(()=>{
+      const rank=Ranking.submit(g.score,g.lines,g.level);
+      Loop.stop();
+      document.getElementById('goTag').classList.remove('show');
+      // 結果をモーダルに表示
+      document.getElementById('overScore').textContent=g.score.toLocaleString()+' pts';
+      document.getElementById('overMeta').textContent=`${g.lines} lines ・ Lv.${g.level}`;
+      const rm=document.getElementById('overRankMsg');
+      if(rank){ rm.textContent=`🎉 ${rank}位にランクイン！`; FX.confetti(); }
+      else rm.textContent='';
+      openModal('overModal');
+    },1600);
+  }
+  function soloRetry(){ closeModal('overModal'); startSolo(); }
+  function soloToTitle(){ closeModal('overModal'); showRanking(); show('titleScreen'); }
+
+  function showRanking(){ Ranking.render(document.getElementById('rankingList')); openModal('rankingModal'); }
+
+  function goMultiplayer(){ initAudio(); openModal('nameModal'); }
+  function nameNext(){
+    const name=document.getElementById('playerName').value.trim();
+    if(!name){ alert('名前を入力してください'); return; }
+    Net.playerName=name; closeModal('nameModal');
+    if(!Net.ensureFirebase()){ alert('Firebase設定が必要です。コード冒頭のfirebaseConfigを設定してください。'); return; }
+    openModal('roomModal');
+  }
+
+  function refresh(){ Loop.render(); }
+
+  return {show,openModal,closeModal,startSolo,soloRetry,soloToTitle,showRanking,goMultiplayer,nameNext,refresh};
+})();
+
+/* ===================================================================
+ * Net / FirebaseManager + RoomManager + MultiplayerSync
+ * =================================================================== */
+const Net=(()=>{
+  let app=null,auth=null,db=null,uid=null,initDone=false;
+  const self={playerName:'',roomCode:null,isHost:false,playersRef:null,roomRef:null,statusRef:null,
+    players:{},game:null,heartbeat:null,watchdog:null,started:false};
+
+  function ensureFirebase(){
+    if(initDone) return true;
+    try{
+      if(!firebaseConfig.apiKey||firebaseConfig.apiKey.includes('YOUR_')) return false;
+      app=firebase.initializeApp(firebaseConfig);
+      auth=firebase.auth(); db=firebase.database();
+      initDone=true;
+      auth.signInAnonymously().then(c=>{ uid=c.user.uid; }).catch(e=>console.warn('auth',e));
+      return true;
+    }catch(e){ console.error('Firebase init failed',e); return false; }
+  }
+  function getUid(){ return uid||(auth&&auth.currentUser&&auth.currentUser.uid); }
+  function ready(){ return new Promise(res=>{
+    if(getUid()){res(getUid());return;}
+    auth.onAuthStateChanged(u=>{ if(u){uid=u.uid;res(u.uid);} });
+  });}
+
+  return {self,ensureFirebase,get db(){return db;},getUid,ready,get playerName(){return self.playerName;},set playerName(v){self.playerName=v;}};
+})();
+
+const RoomManager=(()=>{
+  function rnd4(){ return String(Math.floor(Math.random()*10000)).padStart(4,'0'); }
+
+  async function createRoom(){
+    await Net.ready();
+    const db=Net.db; let code;
+    // 重複しないコードを探す
+    for(let tries=0;tries<20;tries++){
+      code=rnd4();
+      const snap=await db.ref('rooms/'+code).get();
+      if(!snap.exists()) break;
+    }
+    Net.self.roomCode=code; Net.self.isHost=true;
+    const uid=Net.getUid();
+    await db.ref('rooms/'+code).set({
+      status:'waiting', hostId:uid, createdAt:firebase.database.ServerValue.TIMESTAMP
+    });
+    await db.ref(`rooms/${code}/players/${uid}`).set({
+      name:Net.playerName, score:0, lines:0, level:1, status:'ready',
+      lastUpdate:firebase.database.ServerValue.TIMESTAMP
+    });
+    db.ref(`rooms/${code}/players/${uid}`).onDisconnect().remove();
+    AudioEngine.roomCreate();
+    UI.closeModal('roomModal');
+    enterLobby(code);
+  }
+
+  async function joinRoom(){
+    const code=document.getElementById('joinCode').value.trim();
+    const msg=document.getElementById('roomMsg');
+    if(!/^\d{4}$/.test(code)){ msg.textContent='4桁の数字を入力してください'; return; }
+    await Net.ready();
+    const db=Net.db;
+    const snap=await db.ref('rooms/'+code).get();
+    if(!snap.exists()){ msg.textContent='ルームが見つかりません'; return; }
+    const room=snap.val();
+    if(room.status==='playing'){ msg.textContent='すでにゲームが開始されています'; return; }
+    const count=room.players?Object.keys(room.players).length:0;
+    if(count>=4){ msg.textContent='ルームが満員です'; return; }
+    Net.self.roomCode=code; Net.self.isHost=(room.hostId===Net.getUid());
+    const uid=Net.getUid();
+    await db.ref(`rooms/${code}/players/${uid}`).set({
+      name:Net.playerName, score:0, lines:0, level:1, status:'ready',
+      lastUpdate:firebase.database.ServerValue.TIMESTAMP
+    });
+    db.ref(`rooms/${code}/players/${uid}`).onDisconnect().remove();
+    msg.textContent='';
+    UI.closeModal('roomModal');
+    enterLobby(code);
+  }
+
+  function enterLobby(code){
+    const db=Net.db;
+    document.getElementById('lobbyCode').textContent=code;
+    Net.self.started=false;
+    UI.show('lobbyScreen');
+    const playersRef=db.ref(`rooms/${code}/players`);
+    const roomRef=db.ref(`rooms/${code}`);
+    Net.self.playersRef=playersRef; Net.self.roomRef=roomRef;
+
+    let prevCount=0;
+    playersRef.on('value',snap=>{
+      const players=snap.val()||{};
+      Net.self.players=players;
+      const keys=Object.keys(players);
+      // ホスト不在なら最古の参加者を昇格
+      roomRef.child('hostId').get().then(h=>{
+        const hostId=h.val();
+        if(hostId&&!players[hostId]&&keys.length){
+          if(keys[0]===Net.getUid()){ roomRef.child('hostId').set(Net.getUid()); }
+        }
+      });
+      if(keys.length>prevCount&&prevCount>0) AudioEngine.joinChime();
+      prevCount=keys.length;
+      LobbyUI.render(players);
+    });
+
+    // ステータス監視（ゲーム開始）
+    roomRef.child('status').on('value',snap=>{
+      const st=snap.val();
+      if(st==='playing'&&!Net.self.started){ Net.self.started=true; startCountdown(code); }
+    });
+  }
+
+  async function startGame(){
+    const db=Net.db, code=Net.self.roomCode;
+    await db.ref(`rooms/${code}/status`).set('playing');
+  }
+
+  function copyCode(){
+    const code=Net.self.roomCode;
+    if(navigator.clipboard) navigator.clipboard.writeText(code);
+    const btn=event.target; const t=btn.textContent; btn.textContent='✓ コピーしました'; setTimeout(()=>btn.textContent=t,1200);
+  }
+
+  async function leaveRoom(){
+    const db=Net.db, code=Net.self.roomCode, uid=Net.getUid();
+    if(Net.self.playersRef) Net.self.playersRef.off();
+    if(Net.self.roomRef) Net.self.roomRef.child('status').off();
+    if(code&&uid) await db.ref(`rooms/${code}/players/${uid}`).remove();
+    Net.self.roomCode=null;
+    UI.show('titleScreen');
+  }
+
+  function startCountdown(code){
+    const cd=document.getElementById('countdown'), num=document.getElementById('cdNum');
+    cd.classList.add('active');
+    let n=3;
+    function step(){
+      if(n>0){ num.textContent=n; AudioEngine.cdBeep(); n--; setTimeout(step,1000); }
+      else if(n===0){ num.textContent='GO!'; AudioEngine.cdGo(); n--; setTimeout(()=>{ cd.classList.remove('active'); MultiplayerSync.beginGame(code); },800); }
+    }
+    step();
+  }
+
+  return {createRoom,joinRoom,startGame,copyCode,leaveRoom,enterLobby};
+})();
+
+const LobbyUI=(()=>{
+  function render(players){
+    const el=document.getElementById('playerList');
+    const keys=Object.keys(players);
+    const uid=Net.getUid();
+    Net.self.roomRef.child('hostId').get().then(h=>{
+      const hostId=h.val();
+      el.innerHTML=keys.map(k=>{
+        const p=players[k];
+        return `<div class="player-item ${k===uid?'me':''}">
+          <span>${p.name}${k===uid?' (あなた)':''}</span>
+          ${k===hostId?'<span class="host-badge">HOST</span>':''}</div>`;
+      }).join('');
+      // 開始ボタン（ホストのみ・2人以上）
+      const startBtn=document.getElementById('startBtn');
+      const hint=document.getElementById('lobbyHint');
+      if(uid===hostId){
+        startBtn.style.display='block';
+        startBtn.disabled=keys.length<2;
+        startBtn.style.opacity=keys.length<2?0.5:1;
+        hint.textContent=keys.length<2?'2人以上で開始できます':'準備ができたら開始！';
+      } else {
+        startBtn.style.display='none';
+        hint.textContent='ホストの開始を待っています…';
+      }
+    });
+  }
+  return {render};
+})();
+
+const MultiplayerSync=(()=>{
+  let syncTimer=null;
+  let lastSeen={}, prevUpdate={}; // クロックずれに強い切断検知用（ローカル観測時刻）
+  function beginGame(code){
+    const db=Net.db, uid=Net.getUid();
+    buildController('mpController');
+    document.getElementById('goTag').classList.remove('show');
+    UI.show('mpGameScreen');
+    finished=false; lastSeen={}; prevUpdate={};
+    const g=new Game();
+    Net.self.game=g;
+    g.onFx=(text,cls,b2b)=>{ FX.text(text,cls); if(cls.includes('shakeit'))FX.shake('mpField'); if(cls.includes('gold')||cls.includes('particles'))FX.confetti(); if(b2b)FX.b2b(); };
+    g.onLevelUp=()=>{ FX.flash(); AudioEngine.levelup(); };
+    g.onLineClear=(n)=>{ if(n<4) AudioEngine.line(n); };
+    g.onGameOver=()=>{ onMyGameOver(code); };
+    InputHandler.bind(g,'mpField');
+    // status を playing にする際、lastUpdate も同時に更新（開始直後の誤切断検知を防ぐ）
+    db.ref(`rooms/${code}/players/${uid}`).update({status:'playing',score:0,lines:0,level:1,lastUpdate:firebase.database.ServerValue.TIMESTAMP});
+    AudioEngine.startBGM();
+    Loop.start(g,'mp',{field:'mpField',hold:'mpHold',next:'mpNext',score:'mpScore',level:'mpLevel',lines:'mpLines'});
+
+    // 自分のスコア定期送信
+    syncTimer=setInterval(()=>{
+      if(g.over) return;
+      db.ref(`rooms/${code}/players/${uid}`).update({
+        score:g.score, lines:g.lines, level:g.level,
+        lastUpdate:firebase.database.ServerValue.TIMESTAMP
+      });
+    },500);
+
+    // 相手状態監視
+    db.ref(`rooms/${code}/players`).on('value',snap=>{
+      const players=snap.val()||{};
+      Net.self.players=players;
+      renderOpp(players);
+      checkEnd(code,players);
+    });
+  }
+
+  function renderOpp(players){
+    const uid=Net.getUid();
+    const arr=Object.keys(players).map(k=>({id:k,...players[k]}));
+    arr.sort((a,b)=>b.score-a.score);
+    const lead=arr.length?arr[0].id:null;
+    const bar=document.getElementById('oppBar');
+    bar.innerHTML=arr.filter(p=>p.id!==uid).map(p=>{
+      let cls='o'; if(p.id===lead) cls+=' lead'; if(p.status==='gameover') cls+=' dead';
+      return `<span class="${cls}">👤${p.name}:${(p.score||0).toLocaleString()}</span>`;
+    }).join('');
+  }
+
+  function checkEnd(code,players){
+    const keys=Object.keys(players);
+    const now=Date.now();
+    // 各プレイヤーの lastUpdate が変化したら「今ローカルで観測した」時刻を記録（サーバー/クライアントのクロックずれを回避）
+    keys.forEach(k=>{
+      const p=players[k];
+      if(prevUpdate[k]!==p.lastUpdate){ prevUpdate[k]=p.lastUpdate; lastSeen[k]=now; }
+    });
+    // 退出したプレイヤーの記録を掃除
+    Object.keys(lastSeen).forEach(k=>{ if(!players[k]){ delete lastSeen[k]; delete prevUpdate[k]; } });
+    // 切断ウォッチ（playing なのに12秒間ローカルで更新を観測できない→gameover扱い）
+    keys.forEach(k=>{
+      const p=players[k];
+      if(p.status==='playing'&&lastSeen[k]&&(now-lastSeen[k]>12000)){
+        Net.db.ref(`rooms/${code}/players/${k}/status`).set('gameover');
+      }
+    });
+    const alive=keys.filter(k=>players[k].status!=='gameover');
+    // 1人以下になったら終了
+    if(keys.length>1&&alive.length<=1){ finish(code,players); }
+    else if(keys.length===1&&alive.length===0){ finish(code,players); }
+  }
+
+  function onMyGameOver(code){
+    const db=Net.db, uid=Net.getUid();
+    document.getElementById('goTag').classList.add('show');
+    AudioEngine.stopBGM(); AudioEngine.lose();
+    db.ref(`rooms/${code}/players/${uid}/status`).set('gameover');
+    db.ref(`rooms/${code}/players/${uid}`).update({score:Net.self.game.score,lines:Net.self.game.lines,level:Net.self.game.level});
+  }
+
+  let finished=false;
+  function finish(code,players){
+    if(finished) return; finished=true;
+    if(syncTimer){clearInterval(syncTimer);syncTimer=null;}
+    Loop.stop(); InputHandler.unbind(); AudioEngine.stopBGM();
+    Net.db.ref(`rooms/${code}/players`).off();
+    Net.db.ref(`rooms/${code}/status`).off();
+    if(Net.self.isHost) Net.db.ref(`rooms/${code}/status`).set('finished');
+    setTimeout(()=>{ document.getElementById('goTag').classList.remove('show'); ResultScreen.show(players); finished=false; },1200);
+  }
+
+  return {beginGame};
+})();
+
+/* ===================================================================
+ * ResultScreen — 結果画面
+ * =================================================================== */
+const ResultScreen=(()=>{
+  function show(players){
+    const uid=Net.getUid();
+    const arr=Object.keys(players).map(k=>({id:k,...players[k]}));
+    // 勝利判定: score → lines → level
+    arr.sort((a,b)=> (b.score-a.score)||(b.lines-a.lines)||(b.level-a.level));
+    const winner=arr[0];
+    document.getElementById('winnerName').textContent=winner?winner.name:'-';
+    document.getElementById('winnerScore').textContent=winner?`Score: ${(winner.score||0).toLocaleString()}`:'';
+    document.getElementById('resultList').innerHTML=arr.map((p,i)=>`
+      <div class="result-row">
+        <div class="p">${i+1}位</div>
+        <div>${p.name}${p.id===uid?' (あなた)':''}</div>
+        <div style="font-weight:800">${(p.score||0).toLocaleString()} pts</div>
+      </div>`).join('');
+    UI.show('resultScreen');
+    FX.confetti();
+    if(winner&&winner.id===uid) AudioEngine.win(); else AudioEngine.oppOver();
+  }
+  async function rematch(){
+    const code=Net.self.roomCode, uid=Net.getUid(), db=Net.db;
+    // ステータスをwaitingに戻してロビーへ
+    if(Net.self.isHost) await db.ref(`rooms/${code}/status`).set('waiting');
+    await db.ref(`rooms/${code}/players/${uid}`).update({score:0,lines:0,level:1,status:'ready'});
+    RoomManager.enterLobby(code);
+  }
+  function toTitle(){
+    const code=Net.self.roomCode, uid=Net.getUid(), db=Net.db;
+    if(code&&uid) db.ref(`rooms/${code}/players/${uid}`).remove();
+    Net.self.roomCode=null;
+    UI.show('titleScreen');
+  }
+  return {show,rematch,toTitle};
+})();
+
+/* ===================================================================
+ * 背景の落下ミノアニメーション
+ * =================================================================== */
+(function bgAnim(){
+  const c=document.getElementById('bgCanvas'); const ctx=c.getContext('2d');
+  function resize(){ c.width=innerWidth; c.height=innerHeight; }
+  resize(); addEventListener('resize',resize);
+  const types=Object.keys(SHAPES);
+  const parts=[];
+  for(let i=0;i<24;i++) parts.push(spawn());
+  function spawn(){ return {x:Math.random()*innerWidth,y:Math.random()*-innerHeight,
+    type:types[Math.floor(Math.random()*types.length)],s:16+Math.random()*14,
+    vy:0.4+Math.random()*1,rot:Math.random()*6,vr:(Math.random()-0.5)*0.02}; }
+  function loop(){
+    ctx.clearRect(0,0,c.width,c.height);
+    parts.forEach((p,i)=>{
+      p.y+=p.vy; p.rot+=p.vr;
+      if(p.y>innerHeight+60){ parts[i]=spawn(); parts[i].y=-60; }
+      const m=SHAPES[p.type];
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle=COLORS[p.type]; ctx.globalAlpha=0.5;
+      for(let y=0;y<m.length;y++)for(let x=0;x<m[y].length;x++){
+        if(m[y][x]) ctx.fillRect(x*p.s-m[0].length*p.s/2,y*p.s-m.length*p.s/2,p.s-2,p.s-2);
+      }
+      ctx.restore();
+    });
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+
+/* ===================================================================
+ * フィールドを画面内に収める（スマホ見切れ対策）
+ * 利用可能な高さ・幅の小さい方に合わせてフィールドを縮小（縦横比1:2を維持）
+ * =================================================================== */
+function fitGame(){
+  const screen=document.querySelector('#gameScreen.active, #mpGameScreen.active');
+  if(!screen) return;
+  const field=screen.querySelector('canvas.field');
+  const controller=screen.querySelector('.controller');
+  const oppBar=screen.querySelector('.opp-bar');
+  if(!field) return;
+  const vh=window.innerHeight, vw=window.innerWidth;
+  const ctrlH=controller?controller.offsetHeight:0;
+  const oppH=(oppBar&&oppBar.offsetParent!==null)?oppBar.offsetHeight:0;
+  // 高さの利用可能領域（コントローラー・相手バー・余白を差し引く）
+  const availH=vh-ctrlH-oppH-16;
+  // 幅の利用可能領域（左右のサイドパネル分を差し引く）
+  let sideW=0;
+  screen.querySelectorAll('.side').forEach(s=>{ sideW=Math.max(sideW,s.offsetWidth); });
+  const availW=vw-sideW*2-26;
+  // フィールドは縦横比 1:2（幅 = 高さ/2）。高さ・幅の制約のうち厳しい方を採用
+  let h=Math.min(availH,560), w=h/2;
+  if(w>availW){ w=availW; h=w*2; }
+  if(h<120){ h=120; w=60; }
+  field.style.height=h+'px';
+  field.style.width=w+'px';
+}
+window.addEventListener('resize',()=>requestAnimationFrame(fitGame));
+window.addEventListener('orientationchange',()=>setTimeout(fitGame,200));
+
+/* ===================================================================
+ * スマホ対策: スクロール抑制
+ * =================================================================== */
+document.addEventListener('touchmove',e=>{ if(e.target.closest('.modal-box')) return; e.preventDefault(); },{passive:false});
+document.addEventListener('gesturestart',e=>e.preventDefault());
+// 最初のタップでAudioContext起動
+['touchstart','mousedown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ AudioEngine.init(); AudioEngine.resume(); },{once:true}));
+</script>
+</body>
+</html>
+
 button{font-family:inherit;cursor:pointer;color:#fff;border:none;outline:none;}
 
 /* ============================== 画面共通 ============================== */
